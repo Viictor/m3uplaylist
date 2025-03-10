@@ -70,6 +70,7 @@
                     try{
                         decodedUrl = decodedUrl.replace(matches[1], new TextDecoder().decode(base85Decode(matches[1])));
                     } catch (e){
+                        decodedData[decodedData.length - 1].url = decodedUrl;
                         console.error("base85 decode error", e);
                     }
                     if (decodedData.length > 0) {
