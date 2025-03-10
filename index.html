@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>M3U Decoder</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        img {
+            max-height: 50px;
+        }
+    </style>
+</head>
+<body>
+    <h1>M3U Base85 Decoder</h1>
+    <input type="file" id="m3uFile">
+    <button onclick="processM3U()">Decode</button>
+    <div id="results"></div>
+
+    <script>
+        async function processM3U() {
+            const fileInput = document.getElementById('m3uFile');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert('Please select an M3U file.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const m3uContent = event.target.result;
+                const decodedData = parseM3U(m3uContent);
+                displayResults(decodedData);
+            };
+            reader.readAsText(file);
+        }
+
+        function parseM3U(m3uContent) {
+            const lines = m3uContent.split('\n');
+            const decodedData = [];
+            let currentItem = {};
+
+            lines.forEach(line => {
+                if (line.startsWith("#EXTINF:")) {
+                    const logoMatch = line.match(/tvg-logo="([^"]*)"/);
+                    const groupTitleMatch = line.match(/group-title="([^"]*)"(?:,(.*))?/);
+
+                    currentItem = {
+                        logo: logoMatch ? logoMatch[1] : "",
+                        title: groupTitleMatch && groupTitleMatch[2] ? groupTitleMatch[2] : "Unknown",
+                        group: groupTitleMatch && groupTitleMatch[1] ? groupTitleMatch[1] : "Unknown",
+                        url: ""
+                    };
+                    decodedData.push(currentItem);
+                } 
+
+                let decodedUrl = line.trim();
+                const matches = decodedUrl.match(/([0-9A-Za-z!#$%&()*+\-;<=>?@^_`{|}~]{32,})/);
+                if(matches){
+                    try{
+                        decodedUrl = decodedUrl.replace(matches[1], new TextDecoder().decode(base85Decode(matches[1])));
+                    } catch (e){
+                        console.error("base85 decode error", e);
+                    }
+                    if (decodedData.length > 0) {
+                        decodedData[decodedData.length - 1].url = decodedUrl.replace(/\s+parseUrl=\d+$/, '');
+                    }
+                }
+
+                
+            });
+            return decodedData;
+        }
+
+        function base85Decode(input) {
+            const BASE85_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+-;<=>?@^_`{|}~';
+            const BASE = 85;
+            const POW85_4 = 85 * 85 * 85 * 85;
+
+            let padding = input.length % 5;
+            if (padding > 0) {
+                padding = 5 - padding;
+                input += 'u'.repeat(padding);
+            }
+
+            let result = new Uint8Array(input.length * 4 / 5);
+            let resultIndex = 0;
+
+            for (let i = 0; i < input.length; i += 5) {
+                let value = 0;
+                for (let j = 0; j < 5; j++) {
+                    value = value * BASE + BASE85_CHARS.indexOf(input[i + j]);
+                }
+
+                result[resultIndex++] = value >> 24;
+                result[resultIndex++] = (value >> 16) & 0xFF;
+                result[resultIndex++] = (value >> 8) & 0xFF;
+                result[resultIndex++] = value & 0xFF;
+            }
+
+            return result.slice(0, result.length - padding);
+        }
+
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+            let tableHTML = '<table><thead><tr><th>Logo</th><th>Title</th><th>Group</th><th>URL</th></tr></thead><tbody>';
+            data.forEach(item => {
+                tableHTML += `<tr>
+                    <td>${item.logo ? `<img src="${item.logo}" alt="Logo">` : ''}</td>
+                    <td>${item.title}</td>
+                    <td>${item.group}</td>
+                    <td>${item.url ? `<a href="${item.url}" target="_blank">${item.url}</a>` : ''}</td>
+                </tr>`;
+            });
+            tableHTML += '</tbody></table>';
+            resultsDiv.innerHTML = tableHTML;
+        }
+    </script>
+</body>
+</html>
